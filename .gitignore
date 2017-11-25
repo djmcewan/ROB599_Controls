@@ -1,0 +1,4 @@
+*.orig
+
+# MATLAB auto-save files
+*.asv
