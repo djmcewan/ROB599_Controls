@@ -11,6 +11,9 @@ ROB 599 Controls Project
 
 #### Team provided code
 *ROB599Main.m* - Main script that calls all the sub-functions
+
 *planRacePath.m* - Function to determine the optimal race path and velocity. Currently this is just the center of the track at a slow pace to get started.
+
 *TrackCornerClass.m* - Used to define the corners or turns of the track
+
 *SplineClass.m* - Dependency of TrackCornerClass.m

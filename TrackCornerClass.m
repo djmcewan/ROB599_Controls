@@ -28,6 +28,7 @@ classdef (HandleCompatible = true) TrackCornerClass	< matlab.mixin.SetGet
         direction;
         innerEntryXY;
         innerExitXY;
+        innerApexXY;
         centerEntryXY;
         centerExitXY;
         outerEntryXY;
@@ -86,14 +87,15 @@ classdef (HandleCompatible = true) TrackCornerClass	< matlab.mixin.SetGet
             % Determine the radius
             extraSpace = 3.5;
             obj.innerSpline.radiusOfCurvature(obj.apexS);
-            obj.rInner = obj.direction.*obj.innerSpline.radiusOfCurvature(obj.apexS);
-            obj.rOuter = obj.rInner + obj.direction.*(obj.getTrackWidth(obj.apexS) - extraSpace);
+            obj.rInner = obj.direction.*(obj.innerSpline.radiusOfCurvature(obj.apexS) + extraSpace);
+            obj.rOuter = obj.rInner + obj.direction.*(obj.getTrackWidth(obj.apexS) - 2*extraSpace);
             
             % Determine the racing parameters            
             obj.raceCornerTheta = wrapToPi(obj.exitTheta - obj.entryTheta);
             obj.rRace = obj.rInner + (obj.rOuter - obj.rInner)/(1-cos(obj.raceCornerTheta/2));
             
             % Entry/Exit points
+            obj.innerApexXY = obj.innerSpline.interp(obj.apexS);
             obj.innerEntryXY = obj.innerSpline.interp(obj.startS);
             obj.innerExitXY = obj.innerSpline.interp(obj.stopS);
             obj.centerEntryXY = obj.centerSpline.interp(obj.startS);
@@ -155,7 +157,7 @@ classdef (HandleCompatible = true) TrackCornerClass	< matlab.mixin.SetGet
             figure(prevFigFocus);
         end
         
-        function [] = addPlotToFigure(obj,hFig)
+        function [] = addPlotToFigure(obj,hFig,plotRadii)
            % Record the previous working figure
             prevFigFocus = gcf;
             
@@ -167,39 +169,30 @@ classdef (HandleCompatible = true) TrackCornerClass	< matlab.mixin.SetGet
             plot(obj.centerSpline.interpX(obj.cornerSVector),obj.centerSpline.interpY(obj.cornerSVector),'c','LineWidth',3);
             plot(obj.outerSpline.interpX(obj.cornerSVector),obj.outerSpline.interpY(obj.cornerSVector),'g','LineWidth',3);
             
-            % Plot the raw points
-%             plot(obj.innerSpline.XRaw,obj.innerSpline.YRaw,'.-k','MarkerSize',20);
-%             plot(obj.centerSpline.XRaw,obj.centerSpline.YRaw,'.-k','MarkerSize',20);
-%             plot(obj.outerSpline.XRaw,obj.outerSpline.YRaw,'.-k','MarkerSize',20);
-
             % Plot location of corner from manual defintion
             plot([obj.innerSpline.interpX(obj.apexS),obj.centerSpline.interpX(obj.apexS),obj.outerSpline.interpX(obj.apexS)],[obj.innerSpline.interpY(obj.apexS),obj.centerSpline.interpY(obj.apexS),obj.outerSpline.interpY(obj.apexS)],'-k','LineWidth',2,'MarkerSize',30);
                
-            % Plot the radii            
-            cornerMargin = 0.3;
-            radiS = obj.apexS;
-            trackWidth = obj.getTrackWidth(radiS);
-            perpAngle = obj.innerSpline.theta(radiS) + (pi/2);
-%             plotPhiArc = (linspace(-obj.raceCornerTheta,obj.raceCornerTheta,100)./2) - obj.direction.*perpAngle;
-            plotPhiArc = linspace(0,2.*pi,100);
-            startInnerX = interp1([0,trackWidth],[obj.innerSpline.interpX(radiS),obj.outerSpline.interpX(radiS)],cornerMargin);
-            startInnerY = interp1([0,trackWidth],[obj.innerSpline.interpY(radiS),obj.outerSpline.interpY(radiS)],cornerMargin);
-             
-            % Inner arc
-            centerOfInner = [startInnerX + obj.rInner.*cos(perpAngle); startInnerY + obj.rInner.*sin(perpAngle)];
-            innerCircPlot = [centerOfInner(1) + obj.rInner.*cos(plotPhiArc); centerOfInner(2) + obj.rInner.*sin(plotPhiArc)];
-            plot([startInnerX,centerOfInner(1)],[startInnerY,centerOfInner(2)],'-r','MarkerSize',30);
-            plot(innerCircPlot(1,:),innerCircPlot(2,:),'--r');
-%             text(centerOfInner(1),centerOfInner(2),num2str(obj.cornerNum),'FontWeight','bold','HorizontalAlignment','center','Color','r','FontSize',14);
-                
-            % Race arc
-%             centerOfRace = [startInnerX + obj.rRace.*cos(perpAngle); startInnerY + obj.rRace.*sin(perpAngle)];
-%             raceCircPlot = [centerOfRace(1) + obj.rRace.*cos(plotPhiArc); centerOfRace(2) + obj.rRace.*sin(plotPhiArc)];
-% %             plot(raceCircPlot(1,:),raceCircPlot(2,:),'-m','LineWidth',2);
-        
-            % Outer arc
-            outerCircPlot = [centerOfInner(1) + obj.rOuter.*cos(plotPhiArc); centerOfInner(2) + obj.rOuter.*sin(plotPhiArc)];
-            plot(outerCircPlot(1,:),outerCircPlot(2,:),'--g'); 
+            % Plot the inner and outer radii
+            if(plotRadii)
+                % Plot the radii            
+                cornerMargin = 0.3;
+                radiS = obj.apexS;
+                trackWidth = obj.getTrackWidth(radiS);
+                perpAngle = obj.innerSpline.theta(radiS) + (pi/2);
+                plotPhiArc = linspace(0,2.*pi,100);
+                startInnerX = interp1([0,trackWidth],[obj.innerSpline.interpX(radiS),obj.outerSpline.interpX(radiS)],cornerMargin);
+                startInnerY = interp1([0,trackWidth],[obj.innerSpline.interpY(radiS),obj.outerSpline.interpY(radiS)],cornerMargin);
+
+                % Inner arc
+                centerOfInner = [startInnerX + obj.rInner.*cos(perpAngle); startInnerY + obj.rInner.*sin(perpAngle)];
+                innerCircPlot = [centerOfInner(1) + obj.rInner.*cos(plotPhiArc); centerOfInner(2) + obj.rInner.*sin(plotPhiArc)];
+                plot([startInnerX,centerOfInner(1)],[startInnerY,centerOfInner(2)],'-r','MarkerSize',30);
+                plot(innerCircPlot(1,:),innerCircPlot(2,:),'--r');
+
+                % Outer arc
+                outerCircPlot = [centerOfInner(1) + obj.rOuter.*cos(plotPhiArc); centerOfInner(2) + obj.rOuter.*sin(plotPhiArc)];
+                plot(outerCircPlot(1,:),outerCircPlot(2,:),'--g'); 
+            end
             
             % Label the corner
             text(obj.centerSpline.interpX(obj.apexS),obj.centerSpline.interpY(obj.apexS),num2str(obj.cornerNum),'FontWeight','bold','HorizontalAlignment','center','Color','k','FontSize',14);
@@ -214,6 +207,25 @@ classdef (HandleCompatible = true) TrackCornerClass	< matlab.mixin.SetGet
         
         function [vals] = getCurvature(obj,pts)
             vals = polyval(obj.innerCurPoly,pts); 
+        end
+        
+        function [state] = getSuggestedApexState(obj)
+            % Compute the angle
+            interpIdx = obj.apexS + [-0.06,0,0.06];
+            apexPsi =  mean(atan2(diff(obj.centerSpline.interpY(interpIdx)),diff(obj.centerSpline.interpX(interpIdx))));
+            
+            % Compute the lateral acceleration (a = v^2/R)
+            MAX_LAT_ACC = 6;    % 1G = 9.81
+            R_MIN = 1/obj.getCurvature(obj.apexS);
+            V_MAX = sqrt(abs(MAX_LAT_ACC*R_MIN));
+            
+            % Suggest a state vector
+            state = [obj.innerSpline.interpX(obj.apexS),...
+                     V_MAX*cos(apexPsi),...
+                     obj.innerSpline.interpY(obj.apexS),...
+                     V_MAX*sin(apexPsi),...
+                     apexPsi,...
+                     V_MAX/R_MIN];
         end
     end
 end

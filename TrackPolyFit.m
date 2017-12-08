@@ -29,10 +29,10 @@ classdef (HandleCompatible = true) TrackPolyFit < matlab.mixin.SetGet
     
 	methods
 		%% Constructor
-		function [obj] = TrackPolyFit(track,fitS)
-            nPtsExtra = 3;
-            firstIdx = max([find(track.arc_s <= fitS,1,'Last') - nPtsExtra,1]);
-            lastIdx  = min([find(track.arc_s >= fitS,1,'First')+ nPtsExtra,length(track.arc_s)]);
+		function [obj] = TrackPolyFit(track,fitS,trackPolySpacing)
+            nPtsExtra = 2;
+            firstIdx = max([find(track.arc_s <= (fitS - trackPolySpacing),1,'Last') - nPtsExtra,1]);
+            lastIdx  = min([find(track.arc_s >= (fitS + trackPolySpacing),1,'First')+ nPtsExtra,length(track.arc_s)]);
             fitIdx = firstIdx:lastIdx;
             
             % Fit the polynomials for each component

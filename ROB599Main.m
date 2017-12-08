@@ -2,64 +2,93 @@
 % Clear the workspace
 clear; clc; close all;
 
-% Load track Information
-load('TestTrack.mat');
-Track = TestTrack; clear TestTrack;
+% Set the update time of used in the forwardIntegrateControlInput function
+dT = 0.01;      
 
-% Compute the arclength
-Track.arc_s = cumsum([0,vecnorm(diff(Track.cline,[],2))]);
-Track.dtheta = [0,wrapToPi(diff(Track.theta))./diff(Track.arc_s)];
-
-% Define the inline functions
-Track.center = @(s)[interp1(Track.arc_s,Track.cline(1,:),s);interp1(Track.arc_s,Track.cline(2,:),s)];
-Track.ftheta = @(s)interp1(Track.arc_s,Track.theta,s);
-Track.fdtheta = @(s)interp1(Track.arc_s,Track.dtheta,s);
-
-% Generate the random obstacles
-nRandObs = 40;
-randObs = generateRandomObstacles(nRandObs,Track);
-
-%% Set the initial conditions
+% Set the initial conditions
 X0 = [287,5,-176,0,2,0];
 
-%% Draw the track with and without obstacles
-FIG_TRACK_WITHOUT_OBS = 100;
-FIG_TRACK_WITH_OBS = 101;
+% Load track Information
+track = TrackClass('TestTrack.mat',X0);
 
-for iFig = [FIG_TRACK_WITHOUT_OBS,FIG_TRACK_WITH_OBS]
-    figure(iFig); clf; hold on; box on; axis equal;
-    plot(Track.bl(1,:),Track.bl(2,:),'k-','LineWidth',1);
-    plot(Track.br(1,:),Track.br(2,:),'k-','LineWidth',1);
-    plot(Track.cline(1,:),Track.cline(2,:),'k--','LineWidth',1);
-    hAnimatedLine = animatedline(X0(1),X0(3));
+% Load the reference trajectory to get started
+ref = ReferenceTrajectory(track);
 
-    switch(iFig)
-        case FIG_TRACK_WITHOUT_OBS
-            set(iFig,'NumberTitle','Off','Name','Track w/o Obstacles');
-            hWithObsAnimatedLine = hAnimatedLine;
+%% Draw the track with additional contect
+track.plotTrackBase();
+track.plotObstacles();
+track.plotCorners(false);
+track.plotPolynomials();
+track.plotCenterline();
 
-        case FIG_TRACK_WITH_OBS
-            set(iFig,'NumberTitle','Off','Name','Track w/Obstacles');
-            hWithoutObsAnimatedLine = hAnimatedLine;
+% Look at individual corners if necessary
+% track.zoomInOnCorner(4);
 
-            % Draw the obstacles
-            for iObs = 1:nRandObs
-                fill([randObs{iObs}(:,1);randObs{iObs}(1,1)],[randObs{iObs}(:,2);randObs{iObs}(1,2)],'r');
-            end
-    end
-    clear hAnimatedLine
+%% Perform the optimization
+% Define the spacing parameters                
+lookAheadTime = 20; % [steps]
+incrementTime = 10;  % [steps]
+nStates = size(X0,2);
+nInputs = 2;
+nDecPerStep = (nStates+nInputs);
+nDecTotal = (nStates + lookAheadTime*nDecPerStep);
+
+% Objective is to maximize the distance travelled down the track, because fmincon minimizes we add a negative sign
+objectiveFun = @(d) track.trackNegDistanceTraveled(d,nStates);
+
+% Define the lower bounds of the decision vector
+luPosMargin = 5;    % [m]
+maxYawRate = 100;   % [rad/s]
+lb = -Inf(nDecTotal,1);
+lb(1:nDecPerStep:end) = min([track.bl(1,:),track.br(1,:)]) - luPosMargin;
+lb(3:nDecPerStep:end) = min([track.bl(2,:),track.br(2,:)]) - luPosMargin;
+lb(6:nDecPerStep:end) = -maxYawRate;
+lb(7:nDecPerStep:end) = -0.5;
+lb(8:nDecPerStep:end) = -10000;
+
+% Define the upper bounds of the decision vector
+ub = Inf(nDecTotal,1);
+ub(1:nDecPerStep:end) = max([track.bl(1,:),track.br(1,:)]) + luPosMargin;
+ub(3:nDecPerStep:end) = max([track.bl(2,:),track.br(2,:)]) + luPosMargin;
+ub(6:nDecPerStep:end) = maxYawRate;
+ub(7:nDecPerStep:end) = 0.5;
+ub(8:nDecPerStep:end) = 5000;
+
+% Define the non-linear constraint function
+nlcObj = NonLinearConstraintsClass(track,nStates,nInputs,nDecPerStep);
+
+% Set optimization options
+opts = optimoptions('fmincon',...
+                    'SpecifyConstraintGradient',true,...
+                    'SpecifyObjectiveGradient',false,...
+                    'CheckGradients',true,...
+                    'UseParallel',false);
+
+% Seed the initial vector
+D = NaN(nDecTotal,1);
+D(1:nStates,:) = ref.xRef(1,:);
+for iStep = 1:lookAheadTime
+    D((1:nDecPerStep) + nDecPerStep*(iStep-1) + nStates,1) = [ref.uRef(iStep,:),ref.xRef(iStep+1,:)]';
+end           
+                
+% Create a waitbar
+hWaitbar = waitbar(0,'Test');
+
+currentS = track.cartesian2Track(X0);
+% while()
+for i = 1
+    waitbar(currentS/track.arc_s(end));  
+    optvals = fmincon(objectiveFun,D,[],[],[],[],lb,ub,@nlcObj.constraintFcn,opts);    
 end
 
-% Propose a path and velocity profile
-planRacePath();    
+figure(1); clf; hold on;
+plot([D,optvals]);
 
-% Draw the proposed path on the track figures
-for iFig = [FIG_TRACK_WITHOUT_OBS,FIG_TRACK_WITH_OBS]
-    figure(iFig);
-    plot(profileXYPts(:,1),profileXYPts(:,2),'m','LineWidth',3);
-end
+% Close the waitbar
+close(hWaitbar);
 
-%% Generate the necessary control inputs to follow proposed path
-% forwardIntegrateControlInput([[0,0];[0,0]],X0)
-% checkTrajectory(profileXYPts,zeros(size(profileXYPts)))
-% checkTrajectory(profileXYPts,zeros(size(profileXYPts)),randObs)
+%%
+% - Use gradient checker that is part of fmincon
+% - Use small discretation
+% - Be very careful
+% - Do trajectory design over a section of the track and then shift the horizon
