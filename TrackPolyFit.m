@@ -12,6 +12,14 @@ classdef (HandleCompatible = true) TrackPolyFit < matlab.mixin.SetGet
         centerYCoeffs;
         rightXCoeffs;
         rightYCoeffs;
+        
+        % dLine coefficients
+        leftdXCoeffs;
+        leftdYCoeffs;
+        centerdXCoeffs;
+        centerdYCoeffs;
+        rightdXCoeffs;
+        rightdYCoeffs;
     end
 		
     methods(Static)
@@ -30,7 +38,7 @@ classdef (HandleCompatible = true) TrackPolyFit < matlab.mixin.SetGet
 	methods
 		%% Constructor
 		function [obj] = TrackPolyFit(track,fitS,trackPolySpacing)
-            nPtsExtra = 2;
+            nPtsExtra = 1;
             firstIdx = max([find(track.arc_s <= (fitS - trackPolySpacing),1,'Last') - nPtsExtra,1]);
             lastIdx  = min([find(track.arc_s >= (fitS + trackPolySpacing),1,'First')+ nPtsExtra,length(track.arc_s)]);
             fitIdx = firstIdx:lastIdx;
@@ -42,6 +50,14 @@ classdef (HandleCompatible = true) TrackPolyFit < matlab.mixin.SetGet
             obj.centerYCoeffs   = polyfit(track.arc_s(fitIdx),track.cline(2,fitIdx),obj.order);
             obj.rightXCoeffs    = polyfit(track.arc_s(fitIdx),track.br(1,fitIdx),obj.order);
             obj.rightYCoeffs    = polyfit(track.arc_s(fitIdx),track.br(2,fitIdx),obj.order);
+            
+            % Compute the derivatives
+            obj.leftdXCoeffs = polyder(obj.leftXCoeffs);
+            obj.leftdYCoeffs = polyder(obj.leftYCoeffs);
+            obj.centerdXCoeffs = polyder(obj.centerXCoeffs);
+            obj.centerdYCoeffs = polyder(obj.centerYCoeffs);
+            obj.rightdXCoeffs = polyder(obj.rightXCoeffs);
+            obj.rightdYCoeffs = polyder(obj.rightYCoeffs);
         end
 		
 		function [pos] = interpLeft(obj,sPts)
@@ -55,5 +71,10 @@ classdef (HandleCompatible = true) TrackPolyFit < matlab.mixin.SetGet
         function [pos] = interpRight(obj,sPts)
             pos = obj.interpPoly(obj.rightXCoeffs,obj.rightYCoeffs,sPts);
         end
+        
+        function [angle] = getPathAngle(obj,sPts)
+            angle = atan2(polyval(obj.centerdYCoeffs,sPts),polyval(obj.centerdXCoeffs,sPts));
+        end
+        
     end
 end

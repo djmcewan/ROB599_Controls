@@ -8,11 +8,15 @@ classdef (HandleCompatible = true) ReferenceTrajectory < matlab.mixin.SetGet
     
     properties(Access = private)
         filename;
+        track;
     end
     
     methods
 		%% Constructor
-		function [obj] = ReferenceTrajectory(trackObj)
+		function [obj] = ReferenceTrajectory(hTrack)
+            % Copy the track handle
+            obj.track = hTrack;
+            
             % Define the reference filename
             obj.filename = 'ROB599_ControlsProject_Team23.mat';
             
@@ -30,6 +34,11 @@ classdef (HandleCompatible = true) ReferenceTrajectory < matlab.mixin.SetGet
             end
             obj.nRefStates = size(obj.xRef,1);
             
+            % Check to see if the trajectory is valid
+            if(~checkTrajectory(obj.xRef))
+                error('Invalid reference trajectory');
+            end
+                        
             % Parameterize the reference trajectory as a functions of s
             if(any(strcmp(dataFieldnames,'sRef')))
                 obj.sRef = refData.sRef;
@@ -38,12 +47,17 @@ classdef (HandleCompatible = true) ReferenceTrajectory < matlab.mixin.SetGet
                 hWaitbar = waitbar(0,'Parameterizing reference trajectory');
                 for iState = 1:obj.nRefStates
                     waitbar(iState/obj.nRefStates);
-                    sRef(iState) = trackObj.cartesian2Track(obj.xRef(iState,:));
+                    sRef(iState) = obj.track.cartesian2Track(obj.xRef(iState,:));
                 end
                 close(hWaitbar);
                 save(obj.filename,'sRef','-append');
                 obj.sRef = sRef;
             end
+        end
+        
+        function [] = plotTrajectory(obj)
+            plot(obj.track.hMainAxes,obj.xRef(:,1),obj.xRef(:,3),'b','LineWidth',2);
+%             scatter(obj.track.hMainAxes,obj.xRef(:,1),obj.xRef(:,3),5,obj.xRef(:,2));
         end
     end
 end

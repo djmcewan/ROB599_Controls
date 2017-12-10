@@ -38,13 +38,14 @@ classdef (HandleCompatible = true) TrackClass < matlab.mixin.SetGet
         % Plotting properties
         hMainFig;
         hMainAxes;
-        hWithoutObsAnimatedLine;
-        hWithObsAnimatedLine;
+        hWithoutObsLine;
+        hWithObsLine;
+        hWorkingLine;
     end
     
     properties(Access = private)
         % Polynomial fitting properties
-        trackPolySpacing = 5;
+        trackPolySpacing = 7;
         trackPolyLocations;
         trackPolyLocationLims;
         trackPolyObjs;
@@ -143,8 +144,10 @@ classdef (HandleCompatible = true) TrackClass < matlab.mixin.SetGet
             plot(obj.bl(1,:),obj.bl(2,:),'k-','LineWidth',1);
             plot(obj.br(1,:),obj.br(2,:),'k-','LineWidth',1);
             plot(obj.cline(1,:),obj.cline(2,:),'k--','LineWidth',1);
-            obj.hWithoutObsAnimatedLine = animatedline(obj.X0(1),obj.X0(3));
-            obj.hWithObsAnimatedLine = animatedline(obj.X0(1),obj.X0(3));                      
+            obj.hWithoutObsLine = plot(obj.X0(1).*[1,1],obj.X0(3).*[1,1],'-b','LineWidth',2);
+            obj.hWithObsLine    = plot(obj.X0(1).*[1,1],obj.X0(3).*[1,1],'-g','LineWidth',2);
+            obj.hWorkingLine    = plot(obj.X0(1).*[1,1],obj.X0(3).*[1,1],'-b','LineWidth',2);
+            obj.hMainAxes = gca;
         end
         
         function [] = plotObstacles(obj)
@@ -182,15 +185,19 @@ classdef (HandleCompatible = true) TrackClass < matlab.mixin.SetGet
             axis([displayLims + mean(limits(:,1)),displayLims + mean(limits(:,2))]); 
         end
         
-        function [dist,gradDist] = trackNegDistanceTraveled(obj,D,nStates)
+        function [dist,gradDist] = trackNegDistanceTraveled(obj,D,nStates,nlcObj)
             % Get the first and last state
             beginState = D(1:nStates);
             finalState = D((end-nStates+1):end);
+            finalS = obj.cartesian2Track(finalState);
+            finalSeg = obj.getTrackSegment(finalS);
 
-            % Compute the negative distance because we want to minimize    
-            dist = obj.cartesian2Track(beginState) - obj.cartesian2Track(finalState);
-            
-            gradDist = ones(2,1);
+            % Compute the negative distance because we want to minimize
+            dist = obj.cartesian2Track(beginState) - finalS;
+
+            % Compute the gradients
+            gradDist = zeros(size(D));
+            gradDist((end-nStates+1):end) = -nlcObj.partialSdX(finalState,finalSeg.getPathAngle(finalS));
         end
     end
     

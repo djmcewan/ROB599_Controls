@@ -16,25 +16,23 @@ ref = ReferenceTrajectory(track);
 
 %% Draw the track with additional contect
 track.plotTrackBase();
-track.plotObstacles();
-track.plotCorners(false);
+% track.plotObstacles();
+% track.plotCorners(false);
 track.plotPolynomials();
-track.plotCenterline();
+% track.plotCenterline();
+ref.plotTrajectory();
 
 % Look at individual corners if necessary
 % track.zoomInOnCorner(4);
 
 %% Perform the optimization
 % Define the spacing parameters                
-lookAheadTime = 20; % [steps]
-incrementTime = 10;  % [steps]
+lookAheadTime = 2; % [steps]
+incrementTime = 5;  % [steps]
 nStates = size(X0,2);
 nInputs = 2;
-nDecPerStep = (nStates+nInputs);
+nDecPerStep = (nStates + nInputs);
 nDecTotal = (nStates + lookAheadTime*nDecPerStep);
-
-% Objective is to maximize the distance travelled down the track, because fmincon minimizes we add a negative sign
-objectiveFun = @(d) track.trackNegDistanceTraveled(d,nStates);
 
 % Define the lower bounds of the decision vector
 luPosMargin = 5;    % [m]
@@ -55,14 +53,18 @@ ub(7:nDecPerStep:end) = 0.5;
 ub(8:nDecPerStep:end) = 5000;
 
 % Define the non-linear constraint function
-nlcObj = NonLinearConstraintsClass(track,nStates,nInputs,nDecPerStep);
+nlcObj = NonLinearConstraintsClass(track,nStates,nInputs,nDecPerStep,dT);
+
+% Objective is to maximize the distance travelled down the track, because fmincon minimizes we add a negative sign
+objectiveFun = @(d) track.trackNegDistanceTraveled(d,nStates,nlcObj);
 
 % Set optimization options
 opts = optimoptions('fmincon',...
                     'SpecifyConstraintGradient',true,...
-                    'SpecifyObjectiveGradient',false,...
-                    'CheckGradients',true,...
-                    'UseParallel',false);
+                    'SpecifyObjectiveGradient',true,...
+                    'CheckGradients',false,...
+                    'UseParallel',false,...
+                    'OutputFcn',@nlcObj.outputFcn);%'PlotFcn',@nlcObj.plotFcn
 
 % Seed the initial vector
 D = NaN(nDecTotal,1);
@@ -72,23 +74,26 @@ for iStep = 1:lookAheadTime
 end           
                 
 % Create a waitbar
-hWaitbar = waitbar(0,'Test');
+% hWaitbar = waitbar(0,'Test');
+
+% s0 = track.cartesian2Track(X0);
+% seg0 = track.getTrackSegment(s0);
+% nlcObj.partialSdX(X0,seg0.getPathAngle(s0))
 
 currentS = track.cartesian2Track(X0);
 % while()
 for i = 1
-    waitbar(currentS/track.arc_s(end));  
+%     waitbar(currentS/track.arc_s(end));  
     optvals = fmincon(objectiveFun,D,[],[],[],[],lb,ub,@nlcObj.constraintFcn,opts);    
 end
 
-figure(1); clf; hold on;
-plot([D,optvals]);
+% figure(1); clf; hold on;
+% plot([D,optvals]);
 
 % Close the waitbar
-close(hWaitbar);
+% close(hWaitbar);
 
 %%
-% - Use gradient checker that is part of fmincon
+%checkTrajectory(ref.xRef);
 % - Use small discretation
-% - Be very careful
 % - Do trajectory design over a section of the track and then shift the horizon
