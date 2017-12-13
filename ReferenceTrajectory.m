@@ -35,7 +35,7 @@ classdef (HandleCompatible = true) ReferenceTrajectory < matlab.mixin.SetGet
             obj.nRefStates = size(obj.xRef,1);
             
             % Check to see if the trajectory is valid
-            if(~checkTrajectory(obj.xRef))
+            if(checkTrajectory(obj.xRef(:,[1,3]),obj.uRef,[],obj.track))
                 error('Invalid reference trajectory');
             end
                         
