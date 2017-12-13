@@ -185,9 +185,16 @@ classdef (HandleCompatible = true) TrackClass < matlab.mixin.SetGet
             axis([displayLims + mean(limits(:,1)),displayLims + mean(limits(:,2))]); 
         end
         
-        function [dist,gradDist] = trackNegDistanceTraveled(obj,D,nStates,nlcObj)
+        function [dist,gradDist] = trackNegDistanceTraveled(obj,D,nStates,nDecPerStep,nlcObj)
+            % Extract the states / inputs from the decision vector
+            U = [D((nStates + 1):nDecPerStep:end),D((nStates + 2):nDecPerStep:end)]';
+            X = [D(1:nDecPerStep:end),D(2:nDecPerStep:end),D(3:nDecPerStep:end),D(4:nDecPerStep:end),D(5:nDecPerStep:end),D(6:nDecPerStep:end)]';
+            nTotalStates = size(X,2);
+            
             % Get the first and last state
             beginState = D(1:nStates);
+            beginS = obj.cartesian2Track(beginState);
+            beginSeg = obj.getTrackSegment(beginS);
             finalState = D((end-nStates+1):end);
             finalS = obj.cartesian2Track(finalState);
             finalSeg = obj.getTrackSegment(finalS);
@@ -197,7 +204,10 @@ classdef (HandleCompatible = true) TrackClass < matlab.mixin.SetGet
 
             % Compute the gradients
             gradDist = zeros(size(D));
-            gradDist((end-nStates+1):end) = -nlcObj.partialSdX(finalState,finalSeg.getPathAngle(finalS));
+            dIdxOffset = (1-1)*nDecPerStep;
+            gradDist((1:6) + dIdxOffset) = +nlcObj.partialSdX(beginState,beginSeg.getPathAngle(beginS));
+            dIdxOffset = (nTotalStates-1)*nDecPerStep;
+            gradDist((1:6) + dIdxOffset) = -nlcObj.partialSdX(finalState,finalSeg.getPathAngle(finalS));
         end
     end
     

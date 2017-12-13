@@ -27,7 +27,7 @@ ref.plotTrajectory();
 
 %% Perform the optimization
 % Define the spacing parameters                
-lookAheadTime = 2; % [steps]
+lookAheadTime = 10; % [steps]
 incrementTime = 5;  % [steps]
 nStates = size(X0,2);
 nInputs = 2;
@@ -52,14 +52,16 @@ ub(6:nDecPerStep:end) = maxYawRate;
 ub(7:nDecPerStep:end) = 0.5;
 ub(8:nDecPerStep:end) = 5000;
 
-% Define the non-linear constraint function
+%% Define the non-linear constraint function
 nlcObj = NonLinearConstraintsClass(track,nStates,nInputs,nDecPerStep,dT);
 
 % Objective is to maximize the distance travelled down the track, because fmincon minimizes we add a negative sign
-objectiveFun = @(d) track.trackNegDistanceTraveled(d,nStates,nlcObj);
+objectiveFun = @(d) track.trackNegDistanceTraveled(d,nStates,nDecPerStep,nlcObj);
 
 % Set optimization options
 opts = optimoptions('fmincon',...
+                    'FiniteDifferenceType','central',...
+                    'FiniteDifferenceStepSize',1e-10,...
                     'SpecifyConstraintGradient',true,...
                     'SpecifyObjectiveGradient',true,...
                     'CheckGradients',false,...
@@ -72,13 +74,9 @@ D(1:nStates,:) = ref.xRef(1,:);
 for iStep = 1:lookAheadTime
     D((1:nDecPerStep) + nDecPerStep*(iStep-1) + nStates,1) = [ref.uRef(iStep,:),ref.xRef(iStep+1,:)]';
 end           
-                
+  
 % Create a waitbar
 % hWaitbar = waitbar(0,'Test');
-
-% s0 = track.cartesian2Track(X0);
-% seg0 = track.getTrackSegment(s0);
-% nlcObj.partialSdX(X0,seg0.getPathAngle(s0))
 
 currentS = track.cartesian2Track(X0);
 % while()

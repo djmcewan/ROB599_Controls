@@ -68,19 +68,30 @@ classdef (HandleCompatible = true) NonLinearConstraintsClass < matlab.mixin.SetG
                      (F_yf*obj.a*cos(U(1))-F_yr*obj.b)/obj.Iz];
                
             % Compute the dXdU jacobian
-            evalFcn_dXdU = subs(jacobian(obj.dX,U),{'X1','X2','X3','X4','X5','X6','U1','U2'},{'X(1)','X(2)','X(3)','X(4)','X(5)','X(6)','U(1)','U(2)'});
+            symVarNames = [X;U]';
+            inlineVars = {'X(1)','X(2)','X(3)','X(4)','X(5)','X(6)','U(1)','U(2)'};
+            dXdUFcn = jacobian(obj.dX,U);
+            dXdUFcnEval = cell(size(dXdUFcn));
+            for iElement = 1:numel(dXdUFcnEval)
+                tempString = char(dXdUFcn(iElement));
+                for iVar = 1:numel(symVarNames)
+                    tempString = strrep(tempString,char(symVarNames(iVar)),inlineVars{iVar});
+                end
+                dXdUFcnEval{iElement} = tempString;
+            end            
             obj.dXdU = eval(sprintf('@(X,U) [[%s;%s;%s;%s;%s;%s],[%s;%s;%s;%s;%s;%s]]',...
-                        char(evalFcn_dXdU(1,1)),char(evalFcn_dXdU(2,1)),...
-                        char(evalFcn_dXdU(3,1)),char(evalFcn_dXdU(4,1)),...
-                        char(evalFcn_dXdU(5,1)),char(evalFcn_dXdU(6,1)),...
-                        char(evalFcn_dXdU(1,2)),char(evalFcn_dXdU(2,2)),...
-                        char(evalFcn_dXdU(3,2)),char(evalFcn_dXdU(4,2)),...
-                        char(evalFcn_dXdU(5,2)),char(evalFcn_dXdU(6,2))));
+                            char(dXdUFcnEval{1,1}),char(dXdUFcnEval{2,1}),...
+                            char(dXdUFcnEval{3,1}),char(dXdUFcnEval{4,1}),...
+                            char(dXdUFcnEval{5,1}),char(dXdUFcnEval{6,1}),...
+                            char(dXdUFcnEval{1,2}),char(dXdUFcnEval{2,2}),...
+                            char(dXdUFcnEval{3,2}),char(dXdUFcnEval{4,2}),...
+                            char(dXdUFcnEval{5,2}),char(dXdUFcnEval{6,2})));
                     
             % Compute the dSdX jacobian
-            Vxy = obj.R(X(5))*[X(2);X(4)];
-            trackNorm = [cos(theta);sin(theta)];
-            evalFcn_dSdX = subs(jacobian(Vxy'*trackNorm,X),{'X1','X2','X3','X4','X5','X6'},{'X(1)','X(2)','X(3)','X(4)','X(5)','X(6)'});
+%             Vxy = obj.R(X(5))*[X(2);X(4)];
+%             trackNorm = [cos(theta);sin(theta)];
+%             evalFcn_dSdX = subs(jacobian(Vxy'*trackNorm,X),{'X1','X2','X3','X4','X5','X6'},{'X(1)','X(2)','X(3)','X(4)','X(5)','X(6)'});
+            evalFcn_dSdX = subs([cos(theta),0,sin(theta),0,0,0]);
             obj.dSdX = eval(sprintf('@(X,theta) [%s,%s,%s,%s,%s,%s]',char(evalFcn_dSdX(1)),char(evalFcn_dSdX(2)),char(evalFcn_dSdX(3)),char(evalFcn_dSdX(4)),char(evalFcn_dSdX(5)),char(evalFcn_dSdX(6))));
         end
 		
@@ -164,9 +175,9 @@ classdef (HandleCompatible = true) NonLinearConstraintsClass < matlab.mixin.SetG
 
                 % Set the gradients
                 decIdxOffset = obj.nDecPerStep*(iConst-1);
-%                 gradCeq((1:6) + decIdxOffset, (1:6) + eqIdxOffset) = -(eye(6) + obj.partialX(X(:,prevIdx),U(:,prevIdx))');  % dG/dX(k)
-%                 gradCeq((7:8) + decIdxOffset, (1:6) + eqIdxOffset) = -obj.partialU(X(:,prevIdx),U(:,prevIdx))';             % dG/dU(k)
-%                 gradCeq((1:6) + decIdxOffset + obj.nDecPerStep, (1:6) + eqIdxOffset) = eye(6);                              % dG/dX(k+1)
+                gradCeq((1:6) + decIdxOffset, (1:6) + eqIdxOffset) = -eye(6);                                       % dG/dX(k)
+                gradCeq((7:8) + decIdxOffset, (1:6) + eqIdxOffset) = -obj.partialXdU(X(:,prevIdx),U(:,prevIdx))';   % dG/dU(k)
+                gradCeq((1:6) + decIdxOffset + obj.nDecPerStep, (1:6) + eqIdxOffset) = eye(6);                      % dG/dX(k+1)
             end        
         end
 
@@ -186,6 +197,10 @@ classdef (HandleCompatible = true) NonLinearConstraintsClass < matlab.mixin.SetG
             obj.track.hWorkingLine.XData = x(1:obj.nDecPerStep:end);
             obj.track.hWorkingLine.YData = x(3:obj.nDecPerStep:end);
             drawnow;
+            
+            figure(1); hold on;
+            plot(x);
+            
             stop = false;
             disp('Output function');
         end
